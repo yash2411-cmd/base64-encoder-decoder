@@ -1,77 +1,175 @@
-# from cProfile import label
-from cProfile import label
 import tkinter as tk
+from tkinter import messagebox
 import base64
-# from tkinter.tix import COLUMN
+from PIL import ImageTk, Image
 from cryptography.fernet import Fernet
-from pip import main
-root= tk.Tk()
-#main frame size
-root.geometry("620x420")
-root.title("base64 encoder/decoder")
+from Crypto.Cipher import DES, DES3, PKCS1_OAEP, Blowfish
+from Crypto.PublicKey import RSA
+import hashlib
+import webbrowser
 
-#function for encoding the string into base64 
-def base64_encode():
-    s= entry1.get()
-    s_msg= s.encode("ascii") # converting the string into its ascii values
-    base_64_bytes= base64.b64encode(s_msg)  #converting those ascii values in to base64 bytes of 6 bit length
-    base_64_msg= base_64_bytes.decode("ascii")  # converting bytes to string encoded message
+def perform_action():
+    action = selected_action.get()
+    if action == "Encode":
+        encode_data()
+    elif action == "Decode":
+        decode_data()
+    else:
+        show_message("Invalid action selected")
 
-    label1= tk.Entry(root)
-    label1.insert(0,base_64_msg)
-    label1.config(font=("mormal",15))
-    canvas1.create_window(200,190,window=label1)
+def encode_data():
+    data = entry1.get().encode("utf-8")
+    algorithm = selected_algorithm.get()
+    
+    if algorithm == "Base64":
+        result = base64.b64encode(data).decode("utf-8")
+    elif algorithm == "AES":
+        key = Fernet.generate_key()
+        fernet = Fernet(key)
+        encrypted_data = fernet.encrypt(data)
+        result = base64.b64encode(encrypted_data).decode("utf-8")
+    elif algorithm == "DES":
+        des = DES.new(b'abcdefgh', DES.MODE_ECB)
+        padded_data = data + b"\0" * (8 - len(data) % 8)  
+        encrypted_data = des.encrypt(padded_data)
+        result = base64.b64encode(encrypted_data).decode("utf-8")
+    elif algorithm == "3DES":
+        des3 = DES3.new(b'abcdefghabcdefgh', DES3.MODE_ECB)
+        padded_data = data + b"\0" * (8 - len(data) % 8)  
+        encrypted_data = des3.encrypt(padded_data)
+        result = base64.b64encode(encrypted_data).decode("utf-8")
+    elif algorithm == "RSA":
+        key = RSA.generate(2048)
+        private_key = key.export_key()
+        public_key = key.publickey().export_key()
+        cipher = PKCS1_OAEP.new(RSA.import_key(public_key))
+        encrypted_data = cipher.encrypt(data)
+        result = base64.b64encode(encrypted_data).decode("utf-8")
+    elif algorithm == "Blowfish":
+        key = b'Sixteen byte key'
+        cipher = Blowfish.new(key, Blowfish.MODE_ECB)
+        padded_data = data + b"\0" * (8 - len(data) % 8)  
+        encrypted_data = cipher.encrypt(padded_data)
+        result = base64.b64encode(encrypted_data).decode("utf-8")
+    elif algorithm == "XOR":
+        xor_key = hashlib.sha256(b'my_secret_key').digest()[:16]  # Use a 16-byte key for XOR
+        encrypted_data = bytes([data[i] ^ xor_key[i % len(xor_key)] for i in range(len(data))])
+        result = base64.b64encode(encrypted_data).decode("utf-8")
+    else:
+        result = "Invalid algorithm selected"
+    
+    label_result.delete(0, tk.END)  
+    label_result.insert(0, result)
+    show_message("Encoding successful!")
 
-# function for decoding the base64 encoded string    
-def base64_decode():
-    u= entry2.get()
-    s_msg= u.encode("ascii")    # converting the base64 string to ascii 
-    s_data= base64.b64decode(s_msg) # converting the ascii to 8 bits fromm 6 bits
-    main_string= s_data.decode("ascii") # converting the 8 bits to string 
+def decode_data():
+    data = entry1.get()
+    algorithm = selected_algorithm.get()
+    
+    try:
+        decoded_data = base64.b64decode(data)
+        if algorithm == "Base64":
+            result = decoded_data.decode("utf-8")
+        elif algorithm == "AES":
+            key = Fernet.generate_key()
+            fernet = Fernet(key)
+            decrypted_data = fernet.decrypt(decoded_data)
+            result = decrypted_data.decode("utf-8")
+        elif algorithm == "DES":
+            des = DES.new(b'abcdefgh', DES.MODE_ECB)
+            decrypted_data = des.decrypt(decoded_data)
+            # Remove padding
+            result = decrypted_data.rstrip(b"\0").decode("utf-8")
+        elif algorithm == "3DES":
+            des3 = DES3.new(b'abcdefghabcdefgh', DES3.MODE_ECB)
+            decrypted_data = des3.decrypt(decoded_data)
+            # Remove padding
+            result = decrypted_data.rstrip(b"\0").decode("utf-8")
+        elif algorithm == "RSA":
+            key = RSA.generate(2048)
+            private_key = key.export_key()
+            cipher = PKCS1_OAEP.new(RSA.import_key(private_key))
+            decrypted_data = cipher.decrypt(decoded_data)
+            result = decrypted_data.decode("utf-8")
+        elif algorithm == "Blowfish":
+            key = b'Sixteen byte key'
+            cipher = Blowfish.new(key, Blowfish.MODE_ECB)
+            decrypted_data = cipher.decrypt(decoded_data)
+            # Remove padding
+            result = decrypted_data.rstrip(b"\0").decode("utf-8")
+        elif algorithm == "XOR":
+            xor_key = hashlib.sha256(b'my_secret_key').digest()[:16]  # Use a 16-byte key for XOR
+            decrypted_data = bytes([decoded_data[i] ^ xor_key[i % len(xor_key)] for i in range(len(decoded_data))])
+            result = decrypted_data.decode("utf-8")
+        else:
+            result = "Invalid algorithm selected"
+        
+        label_result.delete(0, tk.END)  
+        label_result.insert(0, result)
+        show_message("Decoding successful!")
+    except Exception as e:
+        label_result.delete(0, tk.END)
+        label_result.insert(0, "Error decoding data")
+        show_message(str(e))
 
-    label2= tk.Entry(root)
-    label2.insert(0,main_string)
-    label2.config(font=("mormal",15))
-    canvas1.create_window(200,320,window=label2)
-# def copyencode():
-#     pass
-# def copydecode():
-#     pass
+def show_message(message):
+    messagebox.showinfo("Message", message)
 
-# main windows:
+def open_link():
+    webbrowser.open("https://www.python.org/")
 
-canvas1= tk.Canvas(root,width=400,height=400)
-canvas1.pack()
+root = tk.Tk()
+root.title("Encoder/Decoder")
 
-# creating a heading text 
-label= tk.Label(root,width=500,height=500,text="Base64 Decoder and Encoder")
-label.config(font=("bold",22),bg="#00ccff")
-canvas1.create_window(220,60,window=label)
+# Load and resize background image
+bg_image = Image.open("background.jpg")
+bg_image = bg_image.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
+bg_photo = ImageTk.PhotoImage(bg_image)
 
-# but3= tk.Button(text="Copy",command=copyencode,bg="#4affb7")
-# but4= tk.Button(text="Copy",command=copydecode,bg="#4affb7")
+# Create a canvas for background image
+canvas = tk.Canvas(root, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
+canvas.pack(fill=tk.BOTH, expand=tk.YES)
 
-# canvas1.create_window(300,190,window=but3)
-# canvas1.create_window(300,320,window=but4)
+# Place the background image on the canvas with opacity
+canvas.create_image(0, 0, image=bg_photo, anchor=tk.NW)
+canvas.create_rectangle(0, 0, root.winfo_screenwidth(), root.winfo_screenheight(), fill="black", stipple='gray50')
 
-# entry blocks for user text input 
-entry1= tk.Entry(root)
-entry1.config(font=("mormal",15))
+# Create a frame to hold the widgets
+frame = tk.Frame(canvas, bg='white', bd=5)
+frame.place(relx=0.5, rely=0.5, relwidth=0.8, relheight=0.8, anchor='center')
 
-entry2= tk.Entry(root)
-entry2.config(font=("mormal",15))
-# putting entry blocks in canvas
-canvas1.create_window(200,140,window=entry1)
-canvas1.create_window(200,280,window=entry2)
+# Place widgets inside the frame
+label_title = tk.Label(frame, text="Encoder/Decoder", font=("Arial", 24))
+label_title.pack(pady=10)
 
-# buttons which are assigned to the function for encode and decode
-but1= tk.Button(text="Encode",command=base64_encode,bg="#c20034",fg="#fff")
-but2= tk.Button(text="Decode",command=base64_decode,bg="#0f9100",fg="#fff")
-but1.config(font=("bold",13))
-but2.config(font=("bold",13))
+entry1 = tk.Entry(frame, width=50, font=("Arial", 12))
+entry1.pack(pady=10)
 
-# putting buttons in canvas
-canvas1.create_window(400,140,window=but1)
-canvas1.create_window(400,280,window=but2)
+selected_algorithm = tk.StringVar()
+selected_algorithm.set("Base64")  # Default algorithm
+algorithms = ["Base64", "AES", "DES", "3DES", "RSA", "Blowfish", "XOR"]
+option_menu_algorithm = tk.OptionMenu(frame, selected_algorithm, *algorithms)
+option_menu_algorithm.config(font=("Arial", 12))
+option_menu_algorithm.pack(pady=10)
+
+selected_action = tk.StringVar()
+selected_action.set("Encode")  # Default action
+actions = ["Encode", "Decode"]
+option_menu_action = tk.OptionMenu(frame, selected_action, *actions)
+option_menu_action.config(font=("Arial", 12))
+option_menu_action.pack(pady=10)
+
+button_perform = tk.Button(frame, text="Perform Action", command=perform_action, bg="#4CAF50", fg="white", font=("Arial", 14))
+button_perform.pack(pady=10)
+
+label_result = tk.Entry(frame, width=50, font=("Arial", 12))
+label_result.pack(pady=10)
+
+button_link = tk.Button(frame, text="Learn more", command=open_link, bg="#2196F3", fg="white", font=("Arial", 12))
+button_link.pack(pady=10)
+
+# Configure resizing behavior
+root.columnconfigure(0, weight=1)
+root.rowconfigure(0, weight=1)
 
 root.mainloop()
